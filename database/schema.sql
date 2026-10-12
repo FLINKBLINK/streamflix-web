@@ -127,6 +127,3 @@ CREATE TABLE historico_visualizacao (
 ) ENGINE = InnoDB;
 
 
-SHOW TABLES;
-DESCRIBE assinatura;
-DESCRIBE historico_visualizacao;
