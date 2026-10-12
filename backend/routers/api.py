@@ -216,6 +216,95 @@ def generos():
     """)
 
 
+
+# ============================================================
+# ANALYTICS — INDICADORES DE CONSUMO
+# ============================================================
+
+def analytics_filters(tipo=None, genero=None, data_inicio=None, data_fim=None):
+    return {
+        "tipo": tipo.upper() if tipo else None,
+        "genero": genero or None,
+        "data_inicio": data_inicio or None,
+        "data_fim": data_fim or None,
+    }
+
+
+ANALYTICS_FROM = """
+    FROM historico_visualizacao h
+    JOIN conteudo c ON c.id_conteudo = h.id_conteudo
+    LEFT JOIN conteudo_genero cg ON cg.id_conteudo = c.id_conteudo
+    LEFT JOIN genero g ON g.id_genero = cg.id_genero
+    WHERE
+        (:tipo IS NULL OR c.tipo = :tipo)
+        AND (:genero IS NULL OR g.nome_genero = :genero)
+        AND (:data_inicio IS NULL OR h.data_hora_inicio >= :data_inicio)
+        AND (:data_fim IS NULL OR h.data_hora_inicio < DATE_ADD(:data_fim, INTERVAL 1 DAY))
+"""
+
+
+@router.get("/analytics/resumo")
+def analytics_resumo(
+    tipo: Optional[str] = None,
+    genero: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None
+):
+    params = analytics_filters(tipo, genero, data_inicio, data_fim)
+    consumo = query("""
+        SELECT
+            COUNT(DISTINCT h.id_historico) AS total_visualizacoes,
+            COALESCE(SUM(h.tempo_assistido_min), 0) AS minutos_assistidos,
+            COALESCE(ROUND(100 * AVG(CASE WHEN h.concluido = 1 THEN 1.0 ELSE 0.0 END), 1), 0) AS taxa_conclusao,
+            COUNT(DISTINCT c.id_conteudo) AS conteudos_assistidos
+        """ + ANALYTICS_FROM, params)
+    receita = query("""
+        SELECT COALESCE(SUM(pl.preco_mensal), 0) AS receita_mensal_estimada
+        FROM assinatura a
+        JOIN plano pl ON pl.id_plano = a.id_plano
+        WHERE a.status = 'ATIVA'
+    """)
+    result = consumo[0]
+    result["horas_assistidas"] = round(float(result.pop("minutos_assistidos") or 0) / 60, 1)
+    result["receita_mensal_estimada"] = float(receita[0]["receita_mensal_estimada"] or 0)
+    return result
+
+
+@router.get("/analytics/visualizacoes")
+def analytics_visualizacoes(
+    tipo: Optional[str] = None,
+    genero: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None
+):
+    return query("""
+        SELECT DATE_FORMAT(h.data_hora_inicio, '%Y-%m') AS periodo,
+               COUNT(DISTINCT h.id_historico) AS visualizacoes,
+               ROUND(COALESCE(SUM(h.tempo_assistido_min), 0) / 60, 1) AS horas_assistidas
+        """ + ANALYTICS_FROM + """
+        GROUP BY DATE_FORMAT(h.data_hora_inicio, '%Y-%m')
+        ORDER BY periodo
+    """, analytics_filters(tipo, genero, data_inicio, data_fim))
+
+
+@router.get("/analytics/generos")
+def analytics_generos(
+    tipo: Optional[str] = None,
+    genero: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None
+):
+    return query("""
+        SELECT g.nome_genero AS genero,
+               COUNT(DISTINCT h.id_historico) AS visualizacoes
+        """ + ANALYTICS_FROM + """
+        AND g.id_genero IS NOT NULL
+        GROUP BY g.id_genero, g.nome_genero
+        ORDER BY visualizacoes DESC, genero
+        LIMIT 8
+    """, analytics_filters(tipo, genero, data_inicio, data_fim))
+
+
 # ============================================================
 # USUÁRIOS
 # ============================================================
