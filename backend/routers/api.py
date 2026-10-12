@@ -1,29 +1,9 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
 from sqlalchemy import text
 from backend.database import SessionLocal
 from typing import Optional
 
 router = APIRouter()
-
-
-# ============================================================
-# MODELOS
-# ============================================================
-
-class UserCreate(BaseModel):
-    nome: str = Field(min_length=1, max_length=100)
-    email: str = Field(min_length=3, max_length=150)
-    data_nascimento: str
-    pais: str = Field(default="BR", min_length=2, max_length=2)
-
-
-class WatchCreate(BaseModel):
-    id_perfil: int
-    id_conteudo: int
-    id_episodio: Optional[int] = None
-    tempo_assistido_min: int = Field(default=0, ge=0)
-    concluido: bool = False
 
 
 # ============================================================
@@ -54,7 +34,7 @@ def health():
             "database": "conectado"
         }
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=503,
             detail="Banco de dados indisponível. Tente novamente mais tarde."
@@ -247,70 +227,12 @@ def usuarios():
         SELECT
             id_usuario,
             nome,
-            email,
-            telefone,
-            data_nascimento,
-            pais,
-            data_cadastro
+            pais
 
         FROM usuario
 
         ORDER BY nome
     """)
-
-
-# ============================================================
-# CRIAR USUÁRIO
-# ============================================================
-
-@router.post("/usuarios")
-def criar_usuario(user: UserCreate):
-
-    with SessionLocal() as db:
-
-        try:
-
-            result = db.execute(
-                text("""
-                    INSERT INTO usuario
-                    (
-                        nome,
-                        email,
-                        data_nascimento,
-                        pais,
-                        senha_hash
-                    )
-
-                    VALUES
-                    (
-                        :nome,
-                        :email,
-                        :data_nascimento,
-                        :pais,
-                        SHA2(
-                            CONCAT(:nome, '@webapp'),
-                            256
-                        )
-                    )
-                """),
-                user.model_dump()
-            )
-
-            db.commit()
-
-            return {
-                "id_usuario": result.lastrowid,
-                "mensagem": "Usuário criado"
-            }
-
-        except Exception as e:
-
-            db.rollback()
-
-            raise HTTPException(
-                status_code=400,
-                detail=str(e)
-            )
 
 
 # ============================================================
@@ -400,61 +322,6 @@ def historico(
     """, {
         "id_perfil": id_perfil
     })
-
-
-# ============================================================
-# REGISTRAR VISUALIZAÇÃO
-# ============================================================
-
-@router.post("/historico")
-def registrar_visualizacao(
-    item: WatchCreate
-):
-
-    with SessionLocal() as db:
-
-        try:
-
-            result = db.execute(
-                text("""
-                    INSERT INTO historico_visualizacao
-                    (
-                        id_perfil,
-                        id_conteudo,
-                        id_episodio,
-                        data_hora_inicio,
-                        tempo_assistido_min,
-                        concluido
-                    )
-
-                    VALUES
-                    (
-                        :id_perfil,
-                        :id_conteudo,
-                        :id_episodio,
-                        NOW(),
-                        :tempo_assistido_min,
-                        :concluido
-                    )
-                """),
-                item.dict()
-            )
-
-            db.commit()
-
-            return {
-                "id_historico": result.lastrowid,
-                "mensagem": "Visualização registrada"
-            }
-
-        except Exception as e:
-
-            db.rollback()
-
-            raise HTTPException(
-                status_code=400,
-                detail=str(e)
-            )
 
 
 # ============================================================

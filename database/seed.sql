@@ -17,16 +17,16 @@ INSERT INTO plano (nome_plano, preco_mensal, qualidade_maxima, telas_simultaneas
 
 
 INSERT INTO usuario (nome, email, senha_hash, data_nascimento, pais, data_cadastro) VALUES
-('Ana Souza',        'ana.souza@email.com',        SHA2('Ana@2025',      256), '1990-05-14', 'BR', '2025-01-10 09:15:00'),
-('Bruno Lima',       'bruno.lima@email.com',       SHA2('Bruno@2024',    256), '1985-11-02', 'BR', '2024-03-15 20:40:00'),
-('Carla Mendes',     'carla.mendes@email.com',     SHA2('Carla@2025',    256), '1998-03-27', 'BR', '2025-02-20 14:05:00'),
-('Diego Ferreira',   'diego.ferreira@email.com',   SHA2('Diego@2025',    256), '1992-08-09', 'BR', '2025-05-05 18:30:00'),
-('Elisa Costa',      'elisa.costa@email.com',      SHA2('Elisa@2025',    256), '2001-01-30', 'PT', '2025-06-01 11:00:00'),
-('Felipe Rocha',     'felipe.rocha@email.com',     SHA2('Felipe@2025',   256), '1979-06-18', 'BR', '2025-07-12 22:10:00'),
-('Gabriela Nunes',   'gabriela.nunes@email.com',   SHA2('Gabi@2025',     256), '1995-12-05', 'BR', '2025-08-08 08:45:00'),
-('Henrique Alves',   'henrique.alves@email.com',   SHA2('Henrique@2025', 256), '1988-09-21', 'AR', '2025-09-09 19:20:00'),
-('Isabela Martins',  'isabela.martins@email.com',  SHA2('Isa@2026',      256), '2003-04-11', 'BR', '2026-02-14 10:00:00'),
-('Joao Pereira',     'joao.pereira@email.com',     SHA2('Joao@2026',     256), '1983-07-07', 'BR', '2026-09-01 07:55:00');
+('Ana Souza',        'ana.souza@example.com',        SHA2('demo-only-not-for-auth', 256), '1990-05-14', 'BR', '2025-01-10 09:15:00'),
+('Bruno Lima',       'bruno.lima@example.com',       SHA2('demo-only-not-for-auth', 256), '1985-11-02', 'BR', '2024-03-15 20:40:00'),
+('Carla Mendes',     'carla.mendes@example.com',     SHA2('demo-only-not-for-auth', 256), '1998-03-27', 'BR', '2025-02-20 14:05:00'),
+('Diego Ferreira',   'diego.ferreira@example.com',   SHA2('demo-only-not-for-auth', 256), '1992-08-09', 'BR', '2025-05-05 18:30:00'),
+('Elisa Costa',      'elisa.costa@example.com',      SHA2('demo-only-not-for-auth', 256), '2001-01-30', 'PT', '2025-06-01 11:00:00'),
+('Felipe Rocha',     'felipe.rocha@example.com',     SHA2('demo-only-not-for-auth', 256), '1979-06-18', 'BR', '2025-07-12 22:10:00'),
+('Gabriela Nunes',   'gabriela.nunes@example.com',   SHA2('demo-only-not-for-auth', 256), '1995-12-05', 'BR', '2025-08-08 08:45:00'),
+('Henrique Alves',   'henrique.alves@example.com',   SHA2('demo-only-not-for-auth', 256), '1988-09-21', 'AR', '2025-09-09 19:20:00'),
+('Isabela Martins',  'isabela.martins@example.com',  SHA2('demo-only-not-for-auth', 256), '2003-04-11', 'BR', '2026-02-14 10:00:00'),
+('Joao Pereira',     'joao.pereira@example.com',     SHA2('demo-only-not-for-auth', 256), '1983-07-07', 'BR', '2026-09-01 07:55:00');
 
 
 
@@ -38,7 +38,7 @@ INSERT INTO assinatura (id_usuario, id_plano, data_inicio, data_fim, status, for
 (2,  3,  '2025-03-01', NULL,         'ATIVA',     'PIX'),
 (3,  6,  '2025-02-20', NULL,         'ATIVA',     'PIX'),
 (4,  5,  '2025-05-05', NULL,         'ATIVA',     'CARTAO'),
-(5,  10, '2025-06-01', '2026-05-31', 'ATIVA',     'CARTAO'),
+(5,  10, '2025-06-01', '2026-05-31', 'CANCELADA', 'CARTAO'),
 (6,  1,  '2025-07-12', NULL,         'SUSPENSA',  'BOLETO'),
 (7,  7,  '2025-08-08', NULL,         'ATIVA',     'PIX'),
 (8,  3,  '2025-09-09', '2026-01-09', 'CANCELADA', 'CARTAO'),
