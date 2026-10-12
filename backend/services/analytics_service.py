@@ -29,7 +29,10 @@ def _validar_data(valor, nome):
     if not valor:
         return None
     try:
-        return date.fromisoformat(valor).isoformat()
+        data = date.fromisoformat(valor)
+        if data.isoformat() != valor:
+            raise ValueError
+        return data.isoformat()
     except (TypeError, ValueError):
         raise ValueError(f"{nome} deve estar no formato AAAA-MM-DD.") from None
 
