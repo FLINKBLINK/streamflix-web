@@ -20,6 +20,13 @@ class Credenciais(BaseModel):
     email: str = Field(min_length=5, max_length=150)
     senha: str = Field(min_length=1, max_length=128)
 
+@router.get("/csrf")
+def get_csrf(request: Request):
+    """Cria ou recupera o token necessário para operações de autenticação."""
+    if not request.session.get("csrf_token"):
+        request.session["csrf_token"] = csrf_token()
+    return {"csrf_token": request.session["csrf_token"]}
+
 def validar_email(email):
     email = email.strip().lower()
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
