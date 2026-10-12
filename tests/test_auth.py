@@ -13,7 +13,8 @@ import os
 
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 
-from backend.routers import auth
+from backend.routers import api, auth
+import backend.security as security
 
 
 @pytest.fixture
@@ -50,6 +51,7 @@ def client(monkeypatch):
         autoflush=False,
     )
     monkeypatch.setattr(auth, "SessionLocal", TestSession)
+    monkeypatch.setattr(security, "SessionLocal", TestSession)
 
     app = FastAPI()
     app.add_middleware(
@@ -57,6 +59,7 @@ def client(monkeypatch):
         secret_key="test-only-secret-key",
         session_cookie="streamflix_test_session",
     )
+    app.include_router(api.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
 
     with TestClient(app) as test_client:
@@ -186,3 +189,38 @@ def test_cadastro_sem_csrf_e_bloqueado(client):
     )
 
     assert response.status_code == 403
+
+
+
+def test_historico_exige_autenticacao(client):
+    response = client.get("/api/historico")
+
+    assert response.status_code == 401
+
+
+def test_usuario_comum_nao_acessa_dashboard_admin(client):
+    assert cadastrar(client).status_code == 201
+
+    response = client.get("/api/dashboard")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Acesso restrito a administradores."
+
+
+def test_permissao_admin_e_reavaliada_a_cada_requisicao(client):
+    assert cadastrar(client).status_code == 201
+
+    # O papel é lido do banco a cada requisição, não confiado apenas ao cookie.
+    with auth.SessionLocal() as db:
+        db.execute(
+            text("UPDATE usuario SET papel = 'ADMIN' WHERE email = :email"),
+            {"email": "teste@example.com"},
+        )
+        db.commit()
+
+    response = client.get("/api/dashboard")
+
+    # A autorização passou; a consulta do dashboard segue para o banco de teste,
+    # que não contém as tabelas de catálogo. Portanto, o endpoint não deve
+    # retornar 401/403 por causa da sessão ou do papel.
+    assert response.status_code == 500
