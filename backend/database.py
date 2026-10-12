@@ -7,13 +7,14 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise RuntimeError("A variável de ambiente DATABASE_URL não foi configurada.")
+    raise RuntimeError("DATABASE_URL não configurada.")
 
-# Aiven exige TLS. Ativamos SSL no driver PyMySQL sem passar "ssl-mode"
-# na URL, pois esse parâmetro não é reconhecido diretamente pelo PyMySQL.
 connect_args = {}
+
 if "aivencloud.com" in DATABASE_URL.lower():
-    connect_args["ssl"] = {}
+    connect_args["ssl"] = {
+        "ca": "/etc/secrets/ca.pem"
+    }
 
 engine = create_engine(
     DATABASE_URL,
@@ -24,8 +25,12 @@ engine = create_engine(
     max_overflow=1,
     pool_timeout=30,
 )
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+)
 
 def get_db():
     db = SessionLocal()
