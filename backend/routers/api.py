@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from backend.database import SessionLocal
 from typing import Optional
+from backend.services.analytics_service import normalizar_filtros, desempenho_catalogo
 
 router = APIRouter()
 
@@ -316,6 +317,26 @@ def analytics_generos(
         ORDER BY visualizacoes DESC, genero
         LIMIT 8
     """, analytics_filters(tipo, genero, data_inicio, data_fim))
+
+
+# ============================================================
+# DESEMPENHO DO CATÁLOGO — RANKING E MÉTRICAS POR CONTEÚDO
+# ============================================================
+
+@router.get("/analytics/catalogo")
+def analytics_catalogo(
+    tipo: Optional[str] = None,
+    genero: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    ordenar_por: str = "visualizacoes",
+    ordem: str = "desc"
+):
+    try:
+        filtros = normalizar_filtros(tipo, genero, data_inicio, data_fim)
+        return desempenho_catalogo(filtros, ordenar_por, ordem)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # ============================================================
