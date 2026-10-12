@@ -11,16 +11,19 @@ from backend.routers import api, auth
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Configuração da chave usada para assinar os cookies de sessão.
+# Em produção, a chave precisa ser configurada explicitamente em qualquer provedor.
+app_env = os.getenv("APP_ENV", "development").strip().lower()
+is_production = app_env == "production" or bool(os.getenv("RENDER"))
 session_secret = os.getenv("SESSION_SECRET")
 
 if not session_secret:
-    if os.getenv("RENDER"):
+    if is_production:
         raise RuntimeError(
-            "Configure SESSION_SECRET nas variáveis de ambiente do Render."
+            "Configure SESSION_SECRET nas variáveis de ambiente antes de iniciar "
+            "a aplicação em produção."
         )
 
-    # Chave exclusiva para desenvolvimento local.
+    # Chave previsível apenas para desenvolvimento local. Nunca usar em produção.
     session_secret = "local-dev-only-change-before-deploy"
 
 
@@ -37,7 +40,7 @@ app.add_middleware(
     session_cookie="streamflix_session",
     max_age=60 * 60 * 24 * 14,
     same_site="lax",
-    https_only=bool(os.getenv("RENDER")),
+    https_only=is_production,
     path="/",
 )
 
