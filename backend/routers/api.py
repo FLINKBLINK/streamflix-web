@@ -127,7 +127,7 @@ def conteudos(
         sql,
         {
             "tipo": tipo.upper() if tipo else None,
-            "genero": genero
+            "genero": genero or None
         }
     )
 
