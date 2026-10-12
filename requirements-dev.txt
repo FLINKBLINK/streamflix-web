@@ -1,2 +1,5 @@
 -r requirements.txt
 pytest>=8.0,<9.0
+# Keep TestClient on the compatible Starlette/httpx implementation.
+starlette>=0.40,<1.0
+httpx>=0.27,<1.0
