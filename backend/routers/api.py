@@ -233,11 +233,17 @@ def analytics_filters(tipo=None, genero=None, data_inicio=None, data_fim=None):
 ANALYTICS_FROM = """
     FROM historico_visualizacao h
     JOIN conteudo c ON c.id_conteudo = h.id_conteudo
-    LEFT JOIN conteudo_genero cg ON cg.id_conteudo = c.id_conteudo
-    LEFT JOIN genero g ON g.id_genero = cg.id_genero
     WHERE
         (:tipo IS NULL OR c.tipo = :tipo)
-        AND (:genero IS NULL OR g.nome_genero = :genero)
+        AND (
+            :genero IS NULL OR EXISTS (
+                SELECT 1
+                FROM conteudo_genero cg
+                JOIN genero g ON g.id_genero = cg.id_genero
+                WHERE cg.id_conteudo = c.id_conteudo
+                  AND g.nome_genero = :genero
+            )
+        )
         AND (:data_inicio IS NULL OR h.data_hora_inicio >= :data_inicio)
         AND (:data_fim IS NULL OR h.data_hora_inicio < DATE_ADD(:data_fim, INTERVAL 1 DAY))
 """
@@ -297,8 +303,15 @@ def analytics_generos(
     return query("""
         SELECT g.nome_genero AS genero,
                COUNT(DISTINCT h.id_historico) AS visualizacoes
-        """ + ANALYTICS_FROM + """
-        AND g.id_genero IS NOT NULL
+        FROM historico_visualizacao h
+        JOIN conteudo c ON c.id_conteudo = h.id_conteudo
+        JOIN conteudo_genero cg ON cg.id_conteudo = c.id_conteudo
+        JOIN genero g ON g.id_genero = cg.id_genero
+        WHERE
+            (:tipo IS NULL OR c.tipo = :tipo)
+            AND (:genero IS NULL OR g.nome_genero = :genero)
+            AND (:data_inicio IS NULL OR h.data_hora_inicio >= :data_inicio)
+            AND (:data_fim IS NULL OR h.data_hora_inicio < DATE_ADD(:data_fim, INTERVAL 1 DAY))
         GROUP BY g.id_genero, g.nome_genero
         ORDER BY visualizacoes DESC, genero
         LIMIT 8
