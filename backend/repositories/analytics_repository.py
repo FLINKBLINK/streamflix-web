@@ -4,9 +4,6 @@ As consultas ficam separadas da camada HTTP para facilitar manutenção e valida
 """
 from sqlalchemy import text
 
-from backend.database import SessionLocal
-
-
 def listar_desempenho_catalogo(filtros: dict, ordenar_por: str, ordem: str) -> list[dict]:
     """Retorna indicadores por conteúdo, inclusive conteúdos sem visualizações."""
     colunas_ordenacao = {
@@ -56,6 +53,8 @@ def listar_desempenho_catalogo(filtros: dict, ordenar_por: str, ordem: str) -> l
         GROUP BY c.id_conteudo, c.titulo, c.tipo, c.ano_lancamento
         ORDER BY {coluna} {direcao}, c.titulo ASC
     """
+    from backend.database import SessionLocal
+
     with SessionLocal() as db:
         rows = db.execute(text(sql), filtros).fetchall()
         return [dict(row._mapping) for row in rows]
