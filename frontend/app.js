@@ -1,9 +1,32 @@
 const app=document.getElementById("app"),statusEl=document.getElementById("status");
-async function api(path,options={}){const r=await fetch("/api"+path,{headers:{"Content-Type":"application/json"},...options});const d=await r.json();if(!r.ok)throw Error(d.detail||"Erro na API");return d}
+let currentUser=null, csrfToken=null;
+async function api(path,options={}){
+  const method=(options.method||"GET").toUpperCase();
+  const headers={"Content-Type":"application/json",...(options.headers||{})};
+  if(method!=="GET"&&csrfToken)headers["X-CSRF-Token"]=csrfToken;
+  const r=await fetch("/api"+path,{credentials:"same-origin",...options,headers});
+  let d={};try{d=await r.json()}catch{}
+  if(d.csrf_token)csrfToken=d.csrf_token;
+  if(!r.ok)throw Error(d.detail||"Erro na API");
+  return d;
+}
 const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
 const money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
-async function home(){const d=await api("/dashboard");app.innerHTML=`<div class="container"><section class="hero"><p class="muted">Projeto demonstrativo • Plataforma de streaming</p><h1>Seu banco virou uma plataforma.</h1><p class="muted">Explore o catálogo e veja como os dados se conectam por meio de uma API e um banco MySQL.</p><div class="actions"><button class="primary" onclick="page('catalogo')">Explorar catálogo</button><button onclick="page('admin')">Painel admin</button><button onclick="page('analytics')">Analytics</button></div></section><div class="grid">${Object.entries(d).map(([k,v])=>`<div class="card"><div class="muted">${k}</div><div class="metric">${v}</div></div>`).join("")}</div></div>`}
+async function home(){
+  if(!currentUser){
+    app.innerHTML=`<div class="container"><section class="hero"><p class="muted">Plataforma demonstrativa de streaming</p><h1>Histórias para assistir. Dados para explorar.</h1><p class="muted">Entre na sua conta para acessar seu histórico ou explore o catálogo público.</p><div class="actions"><button class="primary" onclick="page('catalogo')">Explorar catálogo</button><button onclick="authScreen('login')">Entrar</button><button onclick="authScreen('register')">Criar conta</button></div></section></div>`;
+    return;
+  }
+  if(currentUser.papel!=="ADMIN"){
+    app.innerHTML=`<div class="container"><section class="hero"><p class="muted">Bem-vindo(a), ${esc(currentUser.nome)}</p><h1>Continue explorando.</h1><p class="muted">Consulte o catálogo e acompanhe seu histórico de visualizações.</p><div class="actions"><button class="primary" onclick="page('catalogo')">Explorar catálogo</button><button onclick="page('historico')">Meu histórico</button></div></section></div>`;
+    return;
+  }
+  try{
+    const d=await api("/dashboard");
+    app.innerHTML=`<div class="container"><section class="hero"><p class="muted">Área administrativa • ${esc(currentUser.nome)}</p><h1>Visão geral da plataforma.</h1><p class="muted">Indicadores consolidados do banco de dados.</p><div class="actions"><button class="primary" onclick="page('catalogo')">Explorar catálogo</button><button onclick="page('admin')">Painel admin</button><button onclick="page('analytics')">Analytics</button></div></section><div class="grid">${Object.entries(d).map(([k,v])=>`<div class="card"><div class="muted">${esc(k)}</div><div class="metric">${esc(v)}</div></div>`).join("")}</div></div>`;
+  }catch(e){showError(e.message)}
+}
 
 async function catalogo(){const [items,genres]=await Promise.all([api("/conteudos"),api("/generos")]);app.innerHTML=`<div class="container"><h1>Catálogo</h1><p class="muted">Dados reais da tabela conteudo.</p><div class="filters"><select id="tipo"><option value="">Todos</option><option>FILME</option><option>SERIE</option></select><select id="genero"><option value="">Todos os gêneros</option>${genres.map(g=>`<option>${esc(g.nome_genero)}</option>`).join("")}</select><button onclick="filterCatalog()">Filtrar</button></div><div id="catalog" class="grid">${cards(items)}</div></div>`}
 function cards(items){return items.length?items.map(c=>`<article class="card"><div class="poster">${esc(c.titulo)}</div><div class="actions"><span class="tag">${c.tipo}</span><span class="tag">${c.ano_lancamento}</span><span class="tag">${c.classificacao_indicativa}</span></div><p class="muted">${esc(c.sinopse||"")}</p><button onclick="details(${c.id_conteudo})">Ver detalhes</button></article>`).join(""):'<div class="empty">Nenhum conteúdo.</div>'}
@@ -122,6 +145,52 @@ function clearCatalogPerformance(){
 
 async function historico(){const h=await api("/historico");app.innerHTML=`<div class="container"><h1>Histórico</h1><p class="muted">JOIN entre usuário, perfil, conteúdo e episódio.</p><div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Perfil</th><th>Conteúdo</th><th>Episódio</th><th>Data</th><th>Tempo</th><th>Status</th></tr></thead><tbody>${h.map(x=>`<tr><td>${esc(x.usuario)}</td><td>${esc(x.nome_perfil)}</td><td>${esc(x.titulo)}</td><td>${x.titulo_episodio?`T${x.numero_temporada}E${x.numero_episodio} - ${esc(x.titulo_episodio)}`:"Filme"}</td><td>${esc(x.data_hora_inicio)}</td><td>${x.tempo_assistido_min} min</td><td>${x.concluido?"✓ concluído":"Em andamento"}</td></tr>`).join("")}</tbody></table></div></div>`}
 async function admin(){const [u,a,r,p]=await Promise.all([api("/usuarios"),api("/assinaturas"),api("/receita"),api("/planos")]);app.innerHTML=`<div class="container"><h1>Painel administrativo</h1><div class="grid"><div class="card"><div class="muted">Usuários</div><div class="metric">${u.length}</div></div><div class="card"><div class="muted">Assinaturas</div><div class="metric">${a.length}</div></div><div class="card"><div class="muted">Receita ativa</div><div class="metric">${money(r.reduce((s,x)=>s+Number(x.receita_mensal||0),0))}</div></div></div><h2>Planos</h2><div class="grid">${p.map(x=>`<div class="card"><b>${esc(x.nome_plano)}</b><div class="metric">${money(x.preco_mensal)}</div><p class="muted">${x.qualidade_maxima} • ${x.telas_simultaneas} tela(s)<br>${x.permite_download?"✓ Download":"✗ Download"}</p></div>`).join("")}</div><h2>Assinaturas</h2><div class="table-wrap"><table><thead><tr><th>Usuário</th><th>Plano</th><th>Preço</th><th>Status</th><th>Pagamento</th></tr></thead><tbody>${a.map(x=>`<tr><td>${esc(x.usuario)}</td><td>${esc(x.nome_plano)}</td><td>${money(x.preco_mensal)}</td><td>${x.status}</td><td>${x.forma_pagamento}</td></tr>`).join("")}</tbody></table></div><h2>Usuários</h2><p class="muted">Dados fictícios para demonstração. A criação de usuários está desativada nesta versão pública.</p><div class="table-wrap" style="margin-top:15px"><table><thead><tr><th>ID</th><th>Nome</th><th>País</th></tr></thead><tbody>${u.map(x=>`<tr><td>${x.id_usuario}</td><td>${esc(x.nome)}</td><td>${esc(x.pais)}</td></tr>`).join("")}</tbody></table></div></div>`}
-function page(p){({home,catalogo,historico,admin,analytics,desempenho}[p]||home)()}
+function showError(message){
+  app.innerHTML='<div class="container"><div class="card auth-error">'+esc(message)+'</div></div>';
+}
+function authScreen(mode="login"){
+  const registering=mode==="register";
+  app.innerHTML=`<div class="container auth-container"><section class="card auth-card"><p class="muted">STREAMFLIX • CONTA</p><h1>${registering?"Criar conta":"Entrar"}</h1><p class="muted">${registering?"Cadastre-se para criar seu perfil.":"Acesse sua conta para consultar seu histórico."}</p><form id="auth-form" class="auth-form">${registering?'<label>Nome completo<input name="nome" autocomplete="name" minlength="2" maxlength="100" required></label>':''}<label>E-mail<input name="email" type="email" autocomplete="email" maxlength="150" required></label><label>Senha<input name="senha" type="password" autocomplete="${registering?"new-password":"current-password"}" minlength="${registering?10:1}" maxlength="128" required></label>${registering?'<label>Data de nascimento<input name="data_nascimento" type="date" required></label>':''}<button class="primary" type="submit">${registering?"Criar conta":"Entrar"}</button><div id="auth-message" class="muted" role="status"></div></form><p class="auth-switch">${registering?'Já tem uma conta? <button type="button" onclick="authScreen(\'login\')">Entrar</button>':'Ainda não tem conta? <button type="button" onclick="authScreen(\'register\')">Criar conta</button>'}</p></section></div>`;
+  document.getElementById("auth-form").addEventListener("submit",async event=>{
+    event.preventDefault();
+    const form=event.currentTarget, message=document.getElementById("auth-message");
+    const data=Object.fromEntries(new FormData(form).entries());
+    if(!csrfToken){const token=await api("/auth/csrf");csrfToken=token.csrf_token}
+    message.textContent="Aguarde...";
+    try{
+      const result=await api(registering?"/auth/register":"/auth/login",{method:"POST",body:JSON.stringify(data)});
+      currentUser=result.usuario;csrfToken=result.csrf_token||csrfToken;updateAccount();home();
+    }catch(error){message.textContent=error.message}
+  });
+}
+function updateAccount(){
+  const label=document.getElementById("user-label"), button=document.getElementById("auth-button");
+  if(label)label.textContent=currentUser?currentUser.nome:"Visitante";
+  if(button){button.textContent=currentUser?"Sair":"Entrar";button.onclick=async()=>{
+    if(!currentUser){authScreen("login");return}
+    try{await api("/auth/logout",{method:"POST",body:"{}"})}catch(e){showError(e.message);return}
+    currentUser=null;csrfToken=null;updateAccount();page("home");
+  }}
+  document.querySelectorAll("nav button").forEach(b=>{
+    const p=b.dataset.page;
+    b.hidden=(!currentUser&&p==="historico")||(p==="admin"&&currentUser?.papel!=="ADMIN")||(["analytics","desempenho"].includes(p)&&currentUser?.papel!=="ADMIN");
+  });
+}
+function page(p){
+  if(p==="historico"&&!currentUser){authScreen("login");return}
+  if(["admin","analytics","desempenho"].includes(p)&&currentUser?.papel!=="ADMIN"){showError("Acesso restrito a administradores.");return}
+  const pages={home,catalogo,historico,admin,analytics,desempenho};
+  Promise.resolve((pages[p]||home)()).catch(e=>showError(e.message));
+}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>page(b.dataset.page));
-(async()=>{try{await api("/health");statusEl.textContent="● banco conectado";statusEl.style.color="#86efac"}catch(e){statusEl.textContent="● banco offline";statusEl.style.color="#f87171"}home()})();
+(async()=>{
+  try{await api("/health");statusEl.textContent="● banco conectado";statusEl.style.color="#86efac"}
+  catch(e){statusEl.textContent="● banco offline";statusEl.style.color="#f87171"}
+  try{
+    const session=await api("/auth/me");
+    currentUser=session.autenticado?session.usuario:null;
+    csrfToken=session.csrf_token||null;
+    if(!csrfToken){const token=await api("/auth/csrf");csrfToken=token.csrf_token}
+  }catch(e){currentUser=null}
+  updateAccount();home();
+})();
