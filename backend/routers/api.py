@@ -227,11 +227,7 @@ def usuarios():
         SELECT
             id_usuario,
             nome,
-            email,
-            telefone,
-            data_nascimento,
-            pais,
-            data_cadastro
+            pais
 
         FROM usuario
 
