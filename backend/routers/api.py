@@ -1,8 +1,13 @@
-from fastapi import APIRouter, HTTPException
+
+from fastapi import APIRouter, HTTPException, Depends
+from backend.security import current_user, admin_user
 from sqlalchemy import text
 from backend.database import SessionLocal
 from typing import Optional
-from backend.services.analytics_service import normalizar_filtros, desempenho_catalogo
+from backend.services.analytics_service import (
+    normalizar_filtros,
+    desempenho_catalogo,
+)
 
 router = APIRouter()
 
@@ -43,12 +48,11 @@ def health():
 
 
 # ============================================================
-# DASHBOARD
+# DASHBOARD — SOMENTE ADMINISTRADOR
 # ============================================================
 
-@router.get("/dashboard")
+@router.get("/dashboard", dependencies=[Depends(admin_user)])
 def dashboard():
-
     rows = query("""
         SELECT 'usuarios' AS tabela, COUNT(*) AS total
         FROM usuario
@@ -86,7 +90,7 @@ def dashboard():
 
 
 # ============================================================
-# CATÁLOGO DE CONTEÚDOS
+# CATÁLOGO DE CONTEÚDOS — PÚBLICO
 # ============================================================
 
 @router.get("/conteudos")
@@ -94,7 +98,6 @@ def conteudos(
     tipo: Optional[str] = None,
     genero: Optional[str] = None
 ):
-
     sql = """
         SELECT DISTINCT
             c.id_conteudo,
@@ -116,10 +119,7 @@ def conteudos(
 
         WHERE
             (:tipo IS NULL OR c.tipo = :tipo)
-
-            AND
-
-            (:genero IS NULL OR g.nome_genero = :genero)
+            AND (:genero IS NULL OR g.nome_genero = :genero)
 
         ORDER BY c.titulo
     """
@@ -134,12 +134,11 @@ def conteudos(
 
 
 # ============================================================
-# DETALHES DE UM CONTEÚDO
+# DETALHES DE UM CONTEÚDO — PÚBLICO
 # ============================================================
 
 @router.get("/conteudos/{id_conteudo}")
 def conteudo(id_conteudo: int):
-
     rows = query("""
         SELECT
             c.*,
@@ -173,9 +172,7 @@ def conteudo(id_conteudo: int):
 
     result = rows[0]
 
-    # Se for série, busca os episódios
     if result["tipo"] == "SERIE":
-
         result["episodios"] = query("""
             SELECT
                 id_episodio,
@@ -200,12 +197,11 @@ def conteudo(id_conteudo: int):
 
 
 # ============================================================
-# GÊNEROS
+# GÊNEROS — PÚBLICO
 # ============================================================
 
 @router.get("/generos")
 def generos():
-
     return query("""
         SELECT
             id_genero,
@@ -217,12 +213,16 @@ def generos():
     """)
 
 
-
 # ============================================================
-# ANALYTICS — INDICADORES DE CONSUMO
+# ANALYTICS — FILTROS
 # ============================================================
 
-def analytics_filters(tipo=None, genero=None, data_inicio=None, data_fim=None):
+def analytics_filters(
+    tipo=None,
+    genero=None,
+    data_inicio=None,
+    data_fim=None
+):
     return {
         "tipo": tipo.upper() if tipo else None,
         "genero": genero or None,
@@ -245,39 +245,92 @@ ANALYTICS_FROM = """
                   AND g.nome_genero = :genero
             )
         )
-        AND (:data_inicio IS NULL OR h.data_hora_inicio >= :data_inicio)
-        AND (:data_fim IS NULL OR h.data_hora_inicio < DATE_ADD(:data_fim, INTERVAL 1 DAY))
+        AND (
+            :data_inicio IS NULL
+            OR h.data_hora_inicio >= :data_inicio
+        )
+        AND (
+            :data_fim IS NULL
+            OR h.data_hora_inicio < DATE_ADD(:data_fim, INTERVAL 1 DAY)
+        )
 """
 
 
-@router.get("/analytics/resumo")
+# ============================================================
+# ANALYTICS — RESUMO — SOMENTE ADMINISTRADOR
+# ============================================================
+
+@router.get(
+    "/analytics/resumo",
+    dependencies=[Depends(admin_user)]
+)
 def analytics_resumo(
     tipo: Optional[str] = None,
     genero: Optional[str] = None,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None
 ):
-    params = analytics_filters(tipo, genero, data_inicio, data_fim)
+    params = analytics_filters(
+        tipo,
+        genero,
+        data_inicio,
+        data_fim
+    )
+
     consumo = query("""
         SELECT
             COUNT(DISTINCT h.id_historico) AS total_visualizacoes,
             COALESCE(SUM(h.tempo_assistido_min), 0) AS minutos_assistidos,
-            COALESCE(ROUND(100 * AVG(CASE WHEN h.concluido = 1 THEN 1.0 ELSE 0.0 END), 1), 0) AS taxa_conclusao,
+            COALESCE(
+                ROUND(
+                    100 * AVG(
+                        CASE
+                            WHEN h.concluido = 1 THEN 1.0
+                            ELSE 0.0
+                        END
+                    ),
+                    1
+                ),
+                0
+            ) AS taxa_conclusao,
             COUNT(DISTINCT c.id_conteudo) AS conteudos_assistidos
-        """ + ANALYTICS_FROM, params)
+    """ + ANALYTICS_FROM, params)
+
     receita = query("""
-        SELECT COALESCE(SUM(pl.preco_mensal), 0) AS receita_mensal_estimada
+        SELECT
+            COALESCE(SUM(pl.preco_mensal), 0)
+            AS receita_mensal_estimada
+
         FROM assinatura a
-        JOIN plano pl ON pl.id_plano = a.id_plano
+
+        JOIN plano pl
+            ON pl.id_plano = a.id_plano
+
         WHERE a.status = 'ATIVA'
     """)
+
     result = consumo[0]
-    result["horas_assistidas"] = round(float(result.pop("minutos_assistidos") or 0) / 60, 1)
-    result["receita_mensal_estimada"] = float(receita[0]["receita_mensal_estimada"] or 0)
+
+    result["horas_assistidas"] = round(
+        float(result.pop("minutos_assistidos") or 0) / 60,
+        1
+    )
+
+    result["receita_mensal_estimada"] = float(
+        receita[0]["receita_mensal_estimada"] or 0
+    )
+
     return result
 
 
-@router.get("/analytics/visualizacoes")
+# ============================================================
+# ANALYTICS — VISUALIZAÇÕES — SOMENTE ADMINISTRADOR
+# ============================================================
+
+@router.get(
+    "/analytics/visualizacoes",
+    dependencies=[Depends(admin_user)]
+)
 def analytics_visualizacoes(
     tipo: Optional[str] = None,
     genero: Optional[str] = None,
@@ -285,16 +338,32 @@ def analytics_visualizacoes(
     data_fim: Optional[str] = None
 ):
     return query("""
-        SELECT DATE_FORMAT(h.data_hora_inicio, '%Y-%m') AS periodo,
-               COUNT(DISTINCT h.id_historico) AS visualizacoes,
-               ROUND(COALESCE(SUM(h.tempo_assistido_min), 0) / 60, 1) AS horas_assistidas
-        """ + ANALYTICS_FROM + """
+        SELECT
+            DATE_FORMAT(h.data_hora_inicio, '%Y-%m') AS periodo,
+            COUNT(DISTINCT h.id_historico) AS visualizacoes,
+            ROUND(
+                COALESCE(SUM(h.tempo_assistido_min), 0) / 60,
+                1
+            ) AS horas_assistidas
+    """ + ANALYTICS_FROM + """
         GROUP BY DATE_FORMAT(h.data_hora_inicio, '%Y-%m')
         ORDER BY periodo
-    """, analytics_filters(tipo, genero, data_inicio, data_fim))
+    """, analytics_filters(
+        tipo,
+        genero,
+        data_inicio,
+        data_fim
+    ))
 
 
-@router.get("/analytics/generos")
+# ============================================================
+# ANALYTICS — GÊNEROS — SOMENTE ADMINISTRADOR
+# ============================================================
+
+@router.get(
+    "/analytics/generos",
+    dependencies=[Depends(admin_user)]
+)
 def analytics_generos(
     tipo: Optional[str] = None,
     genero: Optional[str] = None,
@@ -302,28 +371,54 @@ def analytics_generos(
     data_fim: Optional[str] = None
 ):
     return query("""
-        SELECT g.nome_genero AS genero,
-               COUNT(DISTINCT h.id_historico) AS visualizacoes
+        SELECT
+            g.nome_genero AS genero,
+            COUNT(DISTINCT h.id_historico) AS visualizacoes
+
         FROM historico_visualizacao h
-        JOIN conteudo c ON c.id_conteudo = h.id_conteudo
-        JOIN conteudo_genero cg ON cg.id_conteudo = c.id_conteudo
-        JOIN genero g ON g.id_genero = cg.id_genero
+
+        JOIN conteudo c
+            ON c.id_conteudo = h.id_conteudo
+
+        JOIN conteudo_genero cg
+            ON cg.id_conteudo = c.id_conteudo
+
+        JOIN genero g
+            ON g.id_genero = cg.id_genero
+
         WHERE
             (:tipo IS NULL OR c.tipo = :tipo)
             AND (:genero IS NULL OR g.nome_genero = :genero)
-            AND (:data_inicio IS NULL OR h.data_hora_inicio >= :data_inicio)
-            AND (:data_fim IS NULL OR h.data_hora_inicio < DATE_ADD(:data_fim, INTERVAL 1 DAY))
+            AND (
+                :data_inicio IS NULL
+                OR h.data_hora_inicio >= :data_inicio
+            )
+            AND (
+                :data_fim IS NULL
+                OR h.data_hora_inicio < DATE_ADD(:data_fim, INTERVAL 1 DAY)
+            )
+
         GROUP BY g.id_genero, g.nome_genero
+
         ORDER BY visualizacoes DESC, genero
+
         LIMIT 8
-    """, analytics_filters(tipo, genero, data_inicio, data_fim))
+    """, analytics_filters(
+        tipo,
+        genero,
+        data_inicio,
+        data_fim
+    ))
 
 
 # ============================================================
-# DESEMPENHO DO CATÁLOGO — RANKING E MÉTRICAS POR CONTEÚDO
+# DESEMPENHO DO CATÁLOGO — SOMENTE ADMINISTRADOR
 # ============================================================
 
-@router.get("/analytics/catalogo")
+@router.get(
+    "/analytics/catalogo",
+    dependencies=[Depends(admin_user)]
+)
 def analytics_catalogo(
     tipo: Optional[str] = None,
     genero: Optional[str] = None,
@@ -333,19 +428,35 @@ def analytics_catalogo(
     ordem: str = "desc"
 ):
     try:
-        filtros = normalizar_filtros(tipo, genero, data_inicio, data_fim)
-        return desempenho_catalogo(filtros, ordenar_por, ordem)
+        filtros = normalizar_filtros(
+            tipo,
+            genero,
+            data_inicio,
+            data_fim
+        )
+
+        return desempenho_catalogo(
+            filtros,
+            ordenar_por,
+            ordem
+        )
+
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
 
 
 # ============================================================
-# USUÁRIOS
+# USUÁRIOS — SOMENTE ADMINISTRADOR
 # ============================================================
 
-@router.get("/usuarios")
+@router.get(
+    "/usuarios",
+    dependencies=[Depends(admin_user)]
+)
 def usuarios():
-
     return query("""
         SELECT
             id_usuario,
@@ -359,12 +470,14 @@ def usuarios():
 
 
 # ============================================================
-# PERFIS
+# PERFIS — SOMENTE ADMINISTRADOR
 # ============================================================
 
-@router.get("/perfis")
+@router.get(
+    "/perfis",
+    dependencies=[Depends(admin_user)]
+)
 def perfis():
-
     return query("""
         SELECT
             p.id_perfil,
@@ -388,34 +501,29 @@ def perfis():
 
 
 # ============================================================
-# HISTÓRICO DE VISUALIZAÇÃO
+# HISTÓRICO — USUÁRIO AUTENTICADO OU ADMINISTRADOR
 # ============================================================
 
 @router.get("/historico")
 def historico(
-    id_perfil: Optional[int] = None
+    id_perfil: Optional[int] = None,
+    usuario: dict = Depends(current_user)
 ):
+    eh_admin = usuario["papel"] == "ADMIN"
 
     return query("""
         SELECT
             h.id_historico,
             h.id_perfil,
-
             u.nome AS usuario,
-
             p.nome_perfil,
-
             h.id_conteudo,
-
             c.titulo,
             c.tipo,
-
             h.id_episodio,
-
             e.numero_temporada,
             e.numero_episodio,
             e.titulo_episodio,
-
             h.data_hora_inicio,
             h.tempo_assistido_min,
             h.concluido
@@ -439,21 +547,28 @@ def historico(
                 :id_perfil IS NULL
                 OR h.id_perfil = :id_perfil
             )
+            AND (
+                :eh_admin = 1
+                OR u.id_usuario = :id_usuario
+            )
 
-        ORDER BY
-            h.data_hora_inicio DESC
+        ORDER BY h.data_hora_inicio DESC
     """, {
-        "id_perfil": id_perfil
+        "id_perfil": id_perfil,
+        "eh_admin": int(eh_admin),
+        "id_usuario": usuario["id_usuario"]
     })
 
 
 # ============================================================
-# ASSINATURAS
+# ASSINATURAS — SOMENTE ADMINISTRADOR
 # ============================================================
 
-@router.get("/assinaturas")
+@router.get(
+    "/assinaturas",
+    dependencies=[Depends(admin_user)]
+)
 def assinaturas():
-
     return query("""
         SELECT
             a.id_assinatura,
@@ -486,12 +601,14 @@ def assinaturas():
 
 
 # ============================================================
-# RECEITA
+# RECEITA — SOMENTE ADMINISTRADOR
 # ============================================================
 
-@router.get("/receita")
+@router.get(
+    "/receita",
+    dependencies=[Depends(admin_user)]
+)
 def receita():
-
     return query("""
         SELECT
             pl.nome_plano,
@@ -507,24 +624,20 @@ def receita():
         JOIN plano pl
             ON pl.id_plano = a.id_plano
 
-        WHERE
-            a.status = 'ATIVA'
+        WHERE a.status = 'ATIVA'
 
-        GROUP BY
-            pl.nome_plano
+        GROUP BY pl.nome_plano
 
-        ORDER BY
-            receita_mensal DESC
+        ORDER BY receita_mensal DESC
     """)
 
 
 # ============================================================
-# PLANOS
+# PLANOS — PÚBLICO
 # ============================================================
 
 @router.get("/planos")
 def planos():
-
     return query("""
         SELECT
             id_plano,
