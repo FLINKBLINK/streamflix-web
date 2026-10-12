@@ -36,6 +36,36 @@ Requisitos: Python 3.11+ e um servidor MySQL acessível.
 
 7. Acesse `http://127.0.0.1:8000` e a documentação da API em `http://127.0.0.1:8000/docs`.
 
+## Módulos analíticos
+
+- **Analytics:** indicadores gerais de consumo, visualizações por mês e por gênero, com filtros por tipo e período.
+- **Desempenho do catálogo:** ranking por visualizações, horas assistidas, média assistida e taxa de conclusão; permite ordenar e filtrar por tipo, gênero e período.
+- **API:** documentação interativa em `/docs`; endpoint analítico adicional em `/api/analytics/catalogo`.
+
+As métricas são calculadas sobre os registros de histórico. A receita exibida é uma estimativa baseada em assinaturas com status `ATIVA`, não um registro de pagamentos realizados.
+
+## Estrutura da entrega acadêmica
+
+- `backend/routers/`: endpoints HTTP.
+- `backend/services/`: validações e regras de negócio.
+- `backend/repositories/`: consultas SQL analíticas.
+- `tests/`: testes automatizados da validação dos filtros e ordenação.
+- `docs/arquitetura.md`: visão geral da arquitetura.
+- `docs/dicionario_dados.md`: tabelas e campos relevantes.
+- `docs/metricas.md`: fórmulas, interpretações e limitações.
+- `docs/consultas_sql.md`: consultas para conferência direta no MySQL.
+
+## Executar testes
+
+Instale as dependências de desenvolvimento e execute:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Os testes de serviço não precisam de conexão com o MySQL; eles verificam a validação dos filtros e da ordenação.
+
 ## Publicar
 
 A configuração `render.yaml` prepara o serviço web. No painel do Render, configure `DATABASE_URL` como variável secreta usando a URL fornecida pelo provedor MySQL. O banco precisa aceitar conexões externas e ter o esquema e os dados de demonstração carregados.
