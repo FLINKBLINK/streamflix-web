@@ -207,7 +207,7 @@ def test_usuario_comum_nao_acessa_dashboard_admin(client):
     assert response.json()["detail"] == "Acesso restrito a administradores."
 
 
-def test_permissao_admin_e_reavaliada_a_cada_requisicao(client):
+def test_permissao_admin_e_reavaliada_a_cada_requisicao(client, monkeypatch):
     assert cadastrar(client).status_code == 201
 
     # O papel é lido do banco a cada requisição, não confiado apenas ao cookie.
@@ -218,9 +218,15 @@ def test_permissao_admin_e_reavaliada_a_cada_requisicao(client):
         )
         db.commit()
 
+    monkeypatch.setattr(
+        api,
+        "query",
+        lambda sql, params=None: [
+            {"tabela": "usuarios", "total": 1}
+        ],
+    )
+
     response = client.get("/api/dashboard")
 
-    # A autorização passou; a consulta do dashboard segue para o banco de teste,
-    # que não contém as tabelas de catálogo. Portanto, o endpoint não deve
-    # retornar 401/403 por causa da sessão ou do papel.
-    assert response.status_code == 500
+    assert response.status_code == 200
+    assert response.json() == {"usuarios": 1}
