@@ -27,7 +27,7 @@ async function analytics(){
   '<div id="an-status" class="muted"></div><div id="an-kpis" class="grid analytics-kpis"></div>'+
   '<div class="grid analytics-charts"><section class="card"><h2>Visualizações por mês</h2><p class="muted">Quantidade de registros no histórico.</p><div id="an-tempo"></div></section>'+
   '<section class="card"><h2>Visualizações por gênero</h2><p class="muted">Um registro pode contar em mais de um gênero.</p><div id="an-generos"></div></section></div>'+
-  '<p class="analytics-note">A receita mensal é uma estimativa: soma dos preços dos planos associados a assinaturas com status ATIVA. Os dados são demonstrativos, não representam faturamento real.</p></div>';
+  '<p class="analytics-note">A receita mensal é uma estimativa global: soma dos preços dos planos associados a assinaturas com status ATIVA e não muda com os filtros de consumo. Não representa pagamentos efetivamente recebidos.</p></div>';
   const genres=await api('/generos');
   document.getElementById('an-genero').innerHTML='<option value="">Todos os gêneros</option>'+genres.map(g=>'<option value="'+esc(g.nome_genero)+'">'+esc(g.nome_genero)+'</option>').join('');
   await loadAnalytics();
