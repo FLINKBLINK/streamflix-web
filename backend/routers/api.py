@@ -223,12 +223,11 @@ def analytics_filters(
     data_inicio=None,
     data_fim=None
 ):
-    return {
-        "tipo": tipo.upper() if tipo else None,
-        "genero": genero or None,
-        "data_inicio": data_inicio or None,
-        "data_fim": data_fim or None,
-    }
+    """Normaliza e valida filtros para todos os endpoints analíticos."""
+    try:
+        return normalizar_filtros(tipo, genero, data_inicio, data_fim)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 ANALYTICS_FROM = """
