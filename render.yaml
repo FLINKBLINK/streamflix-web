@@ -11,3 +11,5 @@ services:
         value: 3.12.6
       - key: DATABASE_URL
         sync: false
+      - key: SESSION_SECRET
+        generateValue: true
