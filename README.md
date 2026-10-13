@@ -1,80 +1,112 @@
 # StreamFlix Web
 
-Aplicação demonstrativa de uma plataforma de streaming, com interface web, API em FastAPI e banco de dados MySQL. Este repositório é independente da entrega acadêmica original.
+Aplicação demonstrativa de uma plataforma de streaming, com frontend em HTML/CSS/JavaScript, API REST em FastAPI e banco de dados MySQL. Este repositório é independente da entrega acadêmica original.
 
-## Estrutura
+## Funcionalidades
 
-- `backend/`: API e conexão SQLAlchemy com MySQL.
-- `frontend/`: HTML, CSS e JavaScript servidos pelo FastAPI.
-- `database/schema.sql`: esquema consolidado do banco para a aplicação web.
-- `database/seed.sql`: dados fictícios para demonstração.
-- `render.yaml`: configuração inicial de deploy no Render.
+- Catálogo público de filmes e séries, com filtros por tipo e gênero.
+- Cadastro, login e logout com sessão assinada, hash de senha Argon2 e proteção CSRF.
+- Histórico de visualizações privado por usuário; cada usuário consulta apenas os próprios registros.
+- Área administrativa protegida por papel `ADMIN`.
+- Indicadores de consumo, visualizações por mês e gênero e ranking de desempenho do catálogo.
+- API documentada automaticamente pelo FastAPI em `/docs`.
+- Testes automatizados e workflow de CI no GitHub Actions.
+
+A receita mensal exibida é uma estimativa da soma dos preços de planos associados a assinaturas `ATIVA`; não representa pagamentos processados ou receita contábil. Os dados de demonstração são fictícios.
+
+## Arquitetura e estrutura
+
+- `backend/main.py`: inicialização do FastAPI, sessão, CORS configurável e montagem do frontend.
+- `backend/routers/auth.py`: cadastro, login, logout e consulta da sessão.
+- `backend/routers/api.py`: endpoints de catálogo, histórico, administração e analytics.
+- `backend/security.py`: hash de senhas, token CSRF e autorização por papel.
+- `backend/rate_limit.py`: limitação local de tentativas malsucedidas de login.
+- `backend/services/analytics_service.py`: validação de filtros e regras do ranking.
+- `backend/repositories/analytics_repository.py`: consultas de desempenho do catálogo.
+- `frontend/`: interface web.
+- `database/schema.sql`: esquema completo para um banco novo.
+- `database/seed.sql`: dados fictícios para demonstração, a executar uma única vez.
+- `database/migrations/001_authentication.sql`: migração de uma base anterior que ainda não possui o campo `papel`.
+- `tests/`: testes automatizados; a verificação de integração MySQL é opcional.
+- `docs/`: arquitetura, métricas, dicionário de dados, consultas SQL e implantação.
+- `.github/workflows/tests.yml`: validações executadas em push e pull request.
+- `render.yaml`: configuração de implantação no Render.
+
+Veja [arquitetura](docs/arquitetura.md) e [instruções de implantação](docs/implantacao.md).
 
 ## Executar localmente
 
 Requisitos: Python 3.11+ e um servidor MySQL acessível.
 
-1. Crie um banco chamado `streaming_db` no MySQL.
-2. Execute `database/schema.sql` no banco vazio.
-3. Execute `database/seed.sql` uma única vez.
-4. Crie um ambiente virtual e instale as dependências:
+1. Crie o banco `streaming_db`.
+2. Para um banco **novo e vazio**, execute `database/schema.sql` e depois `database/seed.sql`, uma única vez.
+3. Para um banco **existente**, faça backup e leia [docs/implantacao.md](docs/implantacao.md). Não execute o esquema consolidado nem a migração às cegas sobre uma base existente.
+4. Crie e ative um ambiente virtual:
 
    ```bash
    python -m venv .venv
    # macOS/Linux
    source .venv/bin/activate
-   # Windows PowerShell: .venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
+   # Windows PowerShell
+   .venv\Scripts\Activate.ps1
    ```
 
-5. Copie `.env.example` para `.env` e configure `DATABASE_URL` com os dados do seu banco. Não envie `.env` ao GitHub.
-6. Inicie a aplicação:
+5. Instale as dependências: `pip install -r requirements.txt`.
+6. Copie `.env.example` para `.env` e configure `DATABASE_URL`. Em desenvolvimento, o backend usa uma chave de sessão local padrão se `SESSION_SECRET` não for definida; nunca use esse padrão em produção.
+7. Inicie a aplicação:
 
    ```bash
    uvicorn backend.main:app --reload
    ```
 
-7. Acesse `http://127.0.0.1:8000` e a documentação da API em `http://127.0.0.1:8000/docs`.
+8. Acesse `http://127.0.0.1:8000`; a documentação da API fica em `http://127.0.0.1:8000/docs`.
 
-## Módulos analíticos
+## Configurar o primeiro administrador
 
-- **Analytics:** indicadores gerais de consumo, visualizações por mês e por gênero, com filtros por tipo e período.
-- **Desempenho do catálogo:** ranking por visualizações, horas assistidas, média assistida e taxa de conclusão; permite ordenar e filtrar por tipo, gênero e período.
-- **API:** documentação interativa em `/docs`; endpoint analítico adicional em `/api/analytics/catalogo`.
+O cadastro público cria sempre um usuário com papel `USUARIO`. Para configurar um administrador:
 
-As métricas são calculadas sobre os registros de histórico. A receita exibida é uma estimativa baseada em assinaturas com status `ATIVA`, não um registro de pagamentos realizados.
+1. Inicie a aplicação e crie uma conta pela interface.
+2. No MySQL, confira o e-mail exato da conta e promova somente essa conta:
 
-## Estrutura da entrega acadêmica
+   ```sql
+   UPDATE usuario
+   SET papel = 'ADMIN'
+   WHERE email = 'seu-email@exemplo.com';
+   ```
 
-- `backend/routers/`: endpoints HTTP.
-- `backend/services/`: validações e regras de negócio.
-- `backend/repositories/`: consultas SQL analíticas.
-- `tests/`: testes automatizados da validação dos filtros e ordenação.
-- `docs/arquitetura.md`: visão geral da arquitetura.
-- `docs/dicionario_dados.md`: tabelas e campos relevantes.
-- `docs/metricas.md`: fórmulas, interpretações e limitações.
-- `docs/consultas_sql.md`: consultas para conferência direta no MySQL.
+3. Confirme que apenas uma linha foi alterada e saia/entre novamente na aplicação.
 
-## Executar testes
+Os usuários incluídos no `seed.sql` têm hashes de senha de demonstração intencionalmente inutilizáveis para login. Não use essas contas como contas administrativas.
+
+## Testes e validações
 
 Instale as dependências de desenvolvimento e execute:
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest
+python -m pytest -q
+python -m compileall -q backend tests
+node --check frontend/app.js
 ```
 
-Os testes de serviço não precisam de conexão com o MySQL; eles verificam a validação dos filtros e da ordenação.
+Os testes padrão usam SQLite em memória para testar rotas e regras sem tocar no banco hospedado. Para executar também o teste de integração MySQL, defina `TEST_DATABASE_URL` apontando **exclusivamente para um banco de teste descartável** e execute `python -m pytest -q` novamente. Não aponte testes para um banco de produção.
 
-## Publicar
+O GitHub Actions executa os testes, a compilação sintática de Python e a verificação sintática do JavaScript.
 
-A configuração `render.yaml` prepara o serviço web. No painel do Render, configure `DATABASE_URL` como variável secreta usando a URL fornecida pelo provedor MySQL. O banco precisa aceitar conexões externas e ter o esquema e os dados de demonstração carregados.
+## Publicar no Render
 
-Planos gratuitos podem ter limites, suspensão por inatividade e mudanças de política; confirme as condições atuais antes de publicar. Não há garantia de disponibilidade contínua ou de custo zero permanente.
+A configuração `render.yaml` declara o serviço web e gera uma chave `SESSION_SECRET` secreta. Configure `DATABASE_URL` no painel do Render com a URL do provedor MySQL. Confirme que o banco permite conexões a partir do serviço e que o esquema/dados foram carregados. Se o provedor exigir um certificado CA, configure o arquivo secreto e o caminho esperado pela aplicação.
 
-## Segurança e escopo
+Após o deploy, valide `/api/health`, cadastro, login/logout, acesso ao histórico e autorização administrativa. O health check confirma a conexão com o banco, não a correção de todas as funcionalidades.
 
-- Nunca publique credenciais, arquivos `.env` ou dumps que contenham dados pessoais reais.
-- Os dados de demonstração são fictícios.
-- Este protótipo não implementa autenticação real; o painel administrativo é apenas demonstrativo e não deve ser usado para administrar dados sensíveis em produção.
-- Este projeto não substitui nem altera os arquivos de entrega acadêmica do repositório original.
+Planos gratuitos podem ter limites, suspensão por inatividade e mudanças de política; confirme as condições atuais. Não há garantia de disponibilidade contínua ou de custo zero permanente.
+
+## Segurança e limitações
+
+- Credenciais e arquivos `.env` nunca devem ser enviados ao GitHub.
+- A sessão usa cookie assinado, `HttpOnly`, `SameSite=Lax` e `Secure` em produção.
+- Operações de autenticação que alteram estado exigem token CSRF.
+- Endpoints administrativos verificam o papel atual do usuário no banco.
+- O rate limiting de login é local a cada processo e não compartilha contadores entre instâncias. Em produção escalada, configure também limitação no proxy/WAF ou um backend compartilhado.
+- Antes de usar com dados reais, faça revisão de segurança, configure monitoramento, backups, política de retenção e testes de integração.
+- Este projeto não substitui nem altera os arquivos da entrega acadêmica original.
