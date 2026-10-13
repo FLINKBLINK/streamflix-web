@@ -44,8 +44,8 @@ class LoginRateLimiter:
     def record_failure(self, key):
         now = self.clock()
         with self._lock:
-            attempts = self._prune(key, now)
-            attempts.append(now)
+            self._prune(key, now)
+            self._attempts[key].append(now)
 
     def reset(self, key):
         with self._lock:
