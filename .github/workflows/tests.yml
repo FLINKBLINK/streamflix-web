@@ -20,3 +20,7 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Executar testes
         run: python -m pytest -q
+      - name: Validar sintaxe Python
+        run: python -m compileall -q backend tests
+      - name: Validar sintaxe JavaScript
+        run: node --check frontend/app.js
