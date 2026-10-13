@@ -460,3 +460,32 @@ def test_endpoints_analytics_rejeitam_datas_invalidas(client):
         assert response.status_code == 400, (
             f"{endpoint} deveria rejeitar data inválida: {response.text}"
         )
+
+
+def test_login_rate_limit_returns_429_after_failed_attempts(client):
+    limiter = auth.login_rate_limiter
+    original_limit = limiter.max_attempts
+    key = "testclient"
+    limiter.reset(key)
+    limiter.max_attempts = 2
+    try:
+        for _ in range(2):
+            token = obter_csrf(client)
+            response = client.post(
+                "/api/auth/login",
+                json={"email": "nao-existe@example.com", "senha": "senha-errada"},
+                headers={"x-csrf-token": token},
+            )
+            assert response.status_code == 401
+
+        token = obter_csrf(client)
+        blocked = client.post(
+            "/api/auth/login",
+            json={"email": "nao-existe@example.com", "senha": "senha-errada"},
+            headers={"x-csrf-token": token},
+        )
+        assert blocked.status_code == 429
+        assert int(blocked.headers["Retry-After"]) > 0
+    finally:
+        limiter.reset(key)
+        limiter.max_attempts = original_limit
