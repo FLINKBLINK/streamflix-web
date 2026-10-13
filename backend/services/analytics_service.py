@@ -8,7 +8,7 @@ ORDENACOES_PERMITIDAS = {"visualizacoes", "horas_assistidas", "media_assistida",
 
 
 def normalizar_filtros(tipo=None, genero=None, data_inicio=None, data_fim=None):
-    tipo_normalizado = tipo.upper().strip() if tipo else None
+    tipo_normalizado = (tipo or "").strip().upper() or None
     if tipo_normalizado and tipo_normalizado not in {"FILME", "SERIE"}:
         raise ValueError("O tipo deve ser FILME ou SERIE.")
 
