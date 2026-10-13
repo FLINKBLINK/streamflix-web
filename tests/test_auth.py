@@ -438,3 +438,25 @@ def test_usuario_nao_acessa_historico_de_outro_usuario(client):
 
     assert response_outro.status_code == 200
     assert response_outro.json() == []
+
+
+def test_endpoints_analytics_rejeitam_datas_invalidas(client):
+    assert cadastrar(client, "admin-filtros@example.com").status_code == 201
+
+    with auth.SessionLocal() as db:
+        db.execute(
+            text("UPDATE usuario SET papel = 'ADMIN' WHERE email = :email"),
+            {"email": "admin-filtros@example.com"},
+        )
+        db.commit()
+
+    for endpoint in (
+        "/api/analytics/resumo",
+        "/api/analytics/visualizacoes",
+        "/api/analytics/generos",
+        "/api/analytics/catalogo",
+    ):
+        response = client.get(f"{endpoint}?data_inicio=ontem")
+        assert response.status_code == 400, (
+            f"{endpoint} deveria rejeitar data inválida: {response.text}"
+        )
