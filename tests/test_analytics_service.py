@@ -34,3 +34,7 @@ def test_normalizar_filtros_rejeita_periodo_invalido(inicio, fim):
 def test_desempenho_rejeita_ordenacao_invalida():
     with pytest.raises(ValueError):
         desempenho_catalogo({}, ordenar_por="coluna_sql")
+
+
+def test_normalizar_filtros_trata_tipo_em_branco_como_todos():
+    assert normalizar_filtros(tipo="   ")["tipo"] is None
